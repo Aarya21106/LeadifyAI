@@ -74,3 +74,58 @@ class AgentCycleResult(BaseSchema):
     drafts_created: int
     summary: str
     errors: List[str] = []
+
+
+# --- Phase 2: API Schemas ---
+
+# Lead Event Read
+class LeadEventRead(BaseSchema):
+    id: uuid.UUID
+    lead_id: uuid.UUID
+    event_type: LeadEventType
+    raw_data: Dict[str, Any]
+    detected_at: datetime
+
+
+# Lead Detail (single lead + latest score + recent events)
+class LeadDetailRead(LeadRead):
+    latest_score: Optional["LeadScoreRead"] = None
+    recent_events: List[LeadEventRead] = []
+
+
+# Lead History (all scores + events for timeline)
+class LeadHistoryRead(BaseSchema):
+    scores: List[LeadScoreRead] = []
+    events: List[LeadEventRead] = []
+
+
+# Queue: draft joined with its lead
+class QueueDraftRead(BaseSchema):
+    draft: FollowUpDraftRead
+    lead: LeadRead
+
+
+# Queue: edit request body
+class DraftEditRequest(BaseSchema):
+    subject: str
+    body: str
+
+
+# Queue: dashboard stats
+class QueueStats(BaseSchema):
+    pending: int
+    sent_today: int
+    skipped_today: int
+
+
+# Auth: Gmail connection status
+class GmailStatus(BaseSchema):
+    connected: bool
+    email: Optional[str] = None
+
+
+# Agents: last cycle status
+class AgentStatusRead(BaseSchema):
+    last_cycle_at: Optional[datetime] = None
+    leads_processed: int = 0
+    drafts_generated: int = 0
