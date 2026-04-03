@@ -24,19 +24,15 @@ from leadify.db.models import Lead, LeadEvent, LeadScore
 
 logger = logging.getLogger(__name__)
 
-SCORING_SYSTEM_PROMPT = (
-    "You are a B2B sales scoring engine. Given the signals below, "
-    "calculate a buy probability score.\n"
-    "Rules:\n"
-    "- Score 0–100 representing likelihood to convert in next 30 days\n"
-    "- A reply classified as 'interested' should push score above 70\n"
-    "- A funding signal + no reply = score 40–55 range\n"
-    "- No activity after 14 days = score decays by 5 points per cycle\n"
-    "- An 'out_of_office' reply should not significantly change score\n"
-    "- Leads with score delta > +20 this cycle are HIGH PRIORITY\n"
-    'Return JSON only: { "score": integer, "delta": integer, '
-    '"reasoning": "string (max 2 sentences)" }'
-)
+SCORING_SYSTEM_PROMPT = """You are a B2B sales scoring engine. Given the signals below, calculate a buy probability score.
+Rules:
+- Score 0–100 representing likelihood to convert in next 30 days
+- A reply classified as 'interested' should push score above 70
+- A funding signal + no reply = score 40–55 range
+- No activity after 14 days = score decays by 5 points per cycle
+- An 'out_of_office' reply should not significantly change score
+- Leads with score delta > +20 this cycle are HIGH PRIORITY
+Return JSON only: { "score": integer, "delta": integer, "reasoning": "string (max 2 sentences)" }"""
 
 
 class ScorerAgent:

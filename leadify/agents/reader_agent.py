@@ -23,21 +23,14 @@ from leadify.db.models import Lead, LeadEvent
 
 logger = logging.getLogger(__name__)
 
-CLASSIFICATION_SYSTEM_PROMPT = (
-    "You are analyzing a reply to a cold sales email. "
-    "Classify the reply and extract key information.\n"
-    "Return JSON only:\n"
-    "{\n"
-    '  "classification": "interested" | "warm" | "cold" | "out_of_office" | "unsubscribe",\n'
-    '  "objections": [],\n'
-    '  "key_quote": null,\n'
-    '  "suggested_angle": null\n'
-    "}\n"
-    "Rules:\n"
-    "- objections: list of specific objections raised, empty array if none\n"
-    "- key_quote: the single most important sentence from the reply, null if none\n"
-    "- suggested_angle: what should the follow-up address? null if not applicable"
-)
+CLASSIFICATION_SYSTEM_PROMPT = """You are analyzing a reply to a cold sales email. Classify the reply and extract key information.
+Return JSON only:
+{
+  "classification": "interested" | "warm" | "cold" | "out_of_office" | "unsubscribe",
+  "objections": string[],  // list of specific objections raised, empty array if none
+  "key_quote": string | null,  // the single most important sentence from the reply
+  "suggested_angle": string | null  // what should the follow-up address?
+}"""
 
 
 class ReaderAgent:
