@@ -39,9 +39,9 @@ export default function LiveView() {
         animate={{ opacity: 1, y: 0 }}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          gap: 20, padding: '14px 20px', borderRadius: 'var(--radius-md)',
-          background: 'var(--bg-card)', border: '1px solid var(--border)',
-          marginBottom: 28, flexWrap: 'wrap',
+          gap: 20, padding: '16px 24px', borderRadius: 'var(--radius-md)',
+          background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)',
+          marginBottom: 32, flexWrap: 'wrap',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
@@ -80,7 +80,7 @@ export default function LiveView() {
           style={{
             fontSize: 11, fontWeight: 700, letterSpacing: 1.5,
             padding: '5px 14px', borderRadius: 20,
-            background: isRunning ? 'var(--blue-dim)' : isComplete ? 'var(--emerald-glow)' : 'rgba(255,255,255,0.03)',
+            background: isRunning ? 'var(--blue-dim)' : isComplete ? 'var(--emerald-glow)' : 'var(--bg-hover)',
             border: `1px solid ${isRunning ? 'rgba(59,130,246,0.2)' : isComplete ? 'rgba(16,185,129,0.2)' : 'var(--border)'}`,
             display: 'flex', alignItems: 'center', gap: 6,
           }}

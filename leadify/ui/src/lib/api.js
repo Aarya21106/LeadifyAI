@@ -28,6 +28,7 @@ export const createLead = (data) =>
 export const getLead = (id) => request(`/leads/${id}`);
 export const updateLead = (id, data) =>
   request(`/leads/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const getLeadHistory = (id) => request(`/leads/${id}/history`);
 
 // ── Auth ──
 export const getGmailStatus = () => request('/auth/gmail/status');

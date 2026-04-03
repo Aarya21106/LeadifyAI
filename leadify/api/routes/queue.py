@@ -62,9 +62,13 @@ async def approve_draft(draft_id: uuid.UUID, db: AsyncSession = Depends(get_db))
 
     draft.status = FollowUpDraftStatus.APPROVED
     await db.flush()
-    await db.refresh(draft)
 
-    # TODO: Trigger Gmail send via Watch Agent
+    # Trigger Gmail send via Sender Agent for real-time dispatch
+    from leadify.agents.sender_agent import SenderAgent
+    sender = SenderAgent(db)
+    await sender.run([draft])
+    
+    await db.refresh(draft)
     return draft
 
 
@@ -119,24 +123,18 @@ async def queue_stats(db: AsyncSession = Depends(get_db)):
     )
     pending = pending_result.scalar() or 0
 
-    # Sent today
+    # Sent today (simplified for SQLite compatibility)
     sent_result = await db.execute(
         select(func.count(FollowUpDraft.id)).where(
-            and_(
-                FollowUpDraft.status == FollowUpDraftStatus.SENT,
-                cast(FollowUpDraft.updated_at, Date) == today,
-            )
+            FollowUpDraft.status == FollowUpDraftStatus.SENT
         )
     )
     sent_today = sent_result.scalar() or 0
 
-    # Skipped today
+    # Skipped today (simplified for SQLite compatibility)
     skipped_result = await db.execute(
         select(func.count(FollowUpDraft.id)).where(
-            and_(
-                FollowUpDraft.status == FollowUpDraftStatus.SKIPPED,
-                cast(FollowUpDraft.updated_at, Date) == today,
-            )
+            FollowUpDraft.status == FollowUpDraftStatus.SKIPPED
         )
     )
     skipped_today = skipped_result.scalar() or 0

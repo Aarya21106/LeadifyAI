@@ -50,8 +50,11 @@ export default function Layout() {
   const runMutation = useMutation({
     mutationFn: runAgents,
     onSuccess: () => {
+      // Refresh all data after agents run
       queryClient.invalidateQueries({ queryKey: ['agent-status'] });
       queryClient.invalidateQueries({ queryKey: ['queue'] });
+      queryClient.invalidateQueries({ queryKey: ['queue-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
   });
 
@@ -66,12 +69,12 @@ export default function Layout() {
         className="sidebar-desktop"
         onMouseEnter={() => setSidebarOpen(true)}
         onMouseLeave={() => setSidebarOpen(false)}
-        animate={{ width: sidebarOpen ? 200 : 64 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+        animate={{ width: sidebarOpen ? 240 : 64 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         style={{
-          height: '100vh', display: 'flex', flexDirection: 'column',
-          background: 'var(--bg-surface)', borderRight: '1px solid var(--border)',
-          overflow: 'hidden', flexShrink: 0, zIndex: 50,
+          background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column',
+          zIndex: 50, overflow: 'hidden', flexShrink: 0,
+          boxShadow: 'var(--shadow-sm)',
         }}
       >
         {/* Logo */}
@@ -191,8 +194,7 @@ export default function Layout() {
         {/* Top Bar */}
         <header style={{
           height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0 28px', borderBottom: '1px solid var(--border)',
-          background: 'rgba(10,10,15,0.8)', backdropFilter: 'blur(16px)',
+          padding: '0 28px', background: 'rgba(10, 10, 10, 0.7)', backdropFilter: 'blur(16px)',
           flexShrink: 0, zIndex: 40,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -252,7 +254,18 @@ export default function Layout() {
 
         {/* Page Content */}
         <main style={{ flex: 1, overflowY: 'auto', padding: 28, background: 'var(--bg-void)' }}>
-          <Outlet />
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              style={{ minHeight: '100%' }}
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
     </div>

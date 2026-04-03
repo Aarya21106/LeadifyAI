@@ -4,6 +4,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from leadify.api.dependencies import get_db
 from leadify.common.enums import LeadStatus
@@ -16,7 +17,8 @@ from leadify.common.schemas import (
     LeadEventRead,
     LeadHistoryRead,
 )
-from leadify.db.models import Lead, LeadScore, LeadEvent
+from leadify.db.models import Lead, LeadScore, LeadEvent, FollowUpDraft
+
 
 router = APIRouter()
 
@@ -24,7 +26,6 @@ router = APIRouter()
 @router.post("", response_model=LeadRead, status_code=status.HTTP_201_CREATED)
 async def create_lead(lead_in: LeadCreate, db: AsyncSession = Depends(get_db)):
     """Create a new lead."""
-    # Check for duplicate email
     existing = await db.execute(select(Lead).where(Lead.email == lead_in.email))
     if existing.scalar_one_or_none():
         raise HTTPException(
@@ -45,17 +46,54 @@ async def create_lead(lead_in: LeadCreate, db: AsyncSession = Depends(get_db)):
     return lead
 
 
-@router.get("", response_model=List[LeadRead])
+@router.get("", response_model=List[LeadDetailRead])
 async def list_leads(
     lead_status: Optional[LeadStatus] = Query(None, alias="status"),
     db: AsyncSession = Depends(get_db),
 ):
-    """List all leads, optionally filtered by status."""
+    """List all leads with their latest score and recent events."""
     query = select(Lead).order_by(desc(Lead.created_at))
     if lead_status is not None:
         query = query.where(Lead.status == lead_status)
     result = await db.execute(query)
-    return result.scalars().all()
+    leads = result.scalars().all()
+
+    items = []
+    for lead in leads:
+        # Latest score
+        score_result = await db.execute(
+            select(LeadScore)
+            .where(LeadScore.lead_id == lead.id)
+            .order_by(desc(LeadScore.scored_at))
+            .limit(1)
+        )
+        latest_score = score_result.scalar_one_or_none()
+
+        # Last 3 events
+        events_result = await db.execute(
+            select(LeadEvent)
+            .where(LeadEvent.lead_id == lead.id)
+            .order_by(desc(LeadEvent.detected_at))
+            .limit(3)
+        )
+        recent_events = events_result.scalars().all()
+
+        items.append(
+            LeadDetailRead(
+                id=lead.id,
+                email=lead.email,
+                name=lead.name,
+                company=lead.company,
+                status=lead.status,
+                first_email_sent_at=lead.first_email_sent_at,
+                created_at=lead.created_at,
+                updated_at=lead.updated_at,
+                latest_score=LeadScoreRead.model_validate(latest_score) if latest_score else None,
+                recent_events=[LeadEventRead.model_validate(e) for e in recent_events],
+            )
+        )
+
+    return items
 
 
 @router.get("/{lead_id}", response_model=LeadDetailRead)
@@ -93,8 +131,8 @@ async def get_lead(lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         first_email_sent_at=lead.first_email_sent_at,
         created_at=lead.created_at,
         updated_at=lead.updated_at,
-        latest_score=latest_score,
-        recent_events=recent_events,
+        latest_score=LeadScoreRead.model_validate(latest_score) if latest_score else None,
+        recent_events=[LeadEventRead.model_validate(e) for e in recent_events],
     )
 
 
@@ -135,7 +173,6 @@ async def delete_lead(lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 @router.get("/{lead_id}/history", response_model=LeadHistoryRead)
 async def get_lead_history(lead_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     """Return all scores and events for a lead, sorted by time descending."""
-    # Verify lead exists
     result = await db.execute(select(Lead).where(Lead.id == lead_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Lead not found")
@@ -151,7 +188,16 @@ async def get_lead_history(lead_id: uuid.UUID, db: AsyncSession = Depends(get_db
         .order_by(desc(LeadEvent.detected_at))
     )
 
+    # Also get drafts
+    from leadify.db.models import FollowUpDraft
+    drafts_result = await db.execute(
+        select(FollowUpDraft)
+        .where(FollowUpDraft.lead_id == lead_id)
+        .order_by(desc(FollowUpDraft.created_at))
+    )
+
     return LeadHistoryRead(
         scores=scores_result.scalars().all(),
         events=events_result.scalars().all(),
+        drafts=drafts_result.scalars().all(),
     )

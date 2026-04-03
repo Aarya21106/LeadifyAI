@@ -93,10 +93,11 @@ class LeadDetailRead(LeadRead):
     recent_events: List[LeadEventRead] = []
 
 
-# Lead History (all scores + events for timeline)
+# Lead History (all scores + events + drafts for timeline)
 class LeadHistoryRead(BaseSchema):
     scores: List[LeadScoreRead] = []
     events: List[LeadEventRead] = []
+    drafts: List[FollowUpDraftRead] = []
 
 
 # Queue: draft joined with its lead

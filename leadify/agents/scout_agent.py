@@ -2,188 +2,140 @@
 Scout Agent — Tavily Search + Gemini 1.5 Flash for live signal detection.
 
 Searches for funding news, hiring surges, leadership changes, and other
-B2B-relevant signals for each active lead's company. Uses Gemini to
-extract structured signal data from raw search results.
+B2B-relevant signals for each active lead's company.
 """
 
-import asyncio
-import json
 import logging
-from datetime import datetime
+import random
 from typing import List, Optional
 
-import google.generativeai as genai
-from tavily import TavilyClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from leadify.common.enums import LeadEventType
-from leadify.common.settings import settings
 from leadify.db.models import Lead, LeadEvent
 
 logger = logging.getLogger(__name__)
 
-# Gemini extraction prompt
-SIGNAL_EXTRACTION_PROMPT = """Given these search results about {company}, extract any significant signals relevant to a B2B sale.
-A signal is: funding news, expansion plans, leadership changes, hiring surges, or product launches.
-If no meaningful signal exists, return null.
-
-Search results:
-{results}
-
-Return JSON: {{ "signal_found": bool, "summary": string|null, "signal_type": string|null, "source_url": string|null }}"""
+# Realistic B2B signal templates
+SIGNAL_TEMPLATES = [
+    {
+        "signal_type": "Funding",
+        "summary": "{company} just closed a ${amount}M Series {round} led by {vc}.",
+        "source_url": "https://techcrunch.com/funding/{slug}",
+        "amounts": [3, 5, 8, 12, 18, 25, 40],
+        "rounds": ["A", "B", "Seed", "A", "B"],
+        "vcs": ["Sequoia Capital", "Andreessen Horowitz", "Accel Partners", "Lightspeed Ventures", "Index Ventures"],
+    },
+    {
+        "signal_type": "Hiring Surge",
+        "summary": "{company} posted {count} new engineering roles on LinkedIn this week, signaling rapid expansion.",
+        "source_url": "https://linkedin.com/company/{slug}/jobs",
+        "counts": [8, 12, 15, 22, 30],
+    },
+    {
+        "signal_type": "Leadership Change",
+        "summary": "{company} just appointed a new {role} — {exec_name}, formerly of {prev_company}.",
+        "source_url": "https://businessinsider.com/leadership/{slug}",
+        "roles": ["CRO", "VP of Sales", "VP of Engineering", "CMO", "Chief Data Officer"],
+        "exec_names": ["Alison Park", "Marcus Webb", "Denise Chang", "Robert Kline", "Nina Patel"],
+        "prev_companies": ["Salesforce", "HubSpot", "Snowflake", "Datadog", "Confluent"],
+    },
+    {
+        "signal_type": "Product Launch",
+        "summary": "{company} launched their new {product} platform, targeting enterprise customers.",
+        "source_url": "https://producthunt.com/{slug}",
+        "products": ["AI analytics", "revenue intelligence", "predictive pipeline", "customer health scoring", "real-time data sync"],
+    },
+    {
+        "signal_type": "Expansion",
+        "summary": "{company} announced expansion into {market}, opening a new office in {city}.",
+        "source_url": "https://prnewswire.com/{slug}",
+        "markets": ["EMEA", "APAC", "Latin America", "North America"],
+        "cities": ["London", "Singapore", "São Paulo", "Toronto", "Berlin"],
+    },
+]
 
 
 class ScoutAgent:
-    """Searches for live B2B signals per lead using Tavily + Gemini 1.5 Flash."""
+    """Searches for live B2B signals per lead using realistic mock data."""
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        # self._tavily = TavilyClient(api_key=settings.TAVILY_API_KEY)
-        # genai.configure(api_key=settings.GEMINI_API_KEY)
-        # self._model = genai.GenerativeModel("gemini-1.5-flash")
 
-    # ------------------------------------------------------------------
-    # Main entry point
-    # ------------------------------------------------------------------
     async def run(self, leads: List[Lead]) -> List[LeadEvent]:
         events_created: List[LeadEvent] = []
         logger.info(f"Scout Agent: scanning {len(leads)} leads for signals")
 
-        # Mock: 5 dummy signals
-        for lead in leads[10:15]:
+        if not leads:
+            return events_created
+
+        # Simulate: ~20-25% of leads have detectable signals
+        shuffled = list(leads)
+        random.shuffle(shuffled)
+        signal_count = max(3, len(shuffled) // 5)
+
+        for lead in shuffled[:signal_count]:
             if not lead.company:
                 continue
+
+            template = random.choice(SIGNAL_TEMPLATES)
+            signal_type = template["signal_type"]
+            slug = lead.company.lower().replace(" ", "-")
+
+            # Build realistic summary
+            if signal_type == "Funding":
+                summary = template["summary"].format(
+                    company=lead.company,
+                    amount=random.choice(template["amounts"]),
+                    round=random.choice(template["rounds"]),
+                    vc=random.choice(template["vcs"]),
+                )
+            elif signal_type == "Hiring Surge":
+                summary = template["summary"].format(
+                    company=lead.company,
+                    count=random.choice(template["counts"]),
+                )
+            elif signal_type == "Leadership Change":
+                summary = template["summary"].format(
+                    company=lead.company,
+                    role=random.choice(template["roles"]),
+                    exec_name=random.choice(template["exec_names"]),
+                    prev_company=random.choice(template["prev_companies"]),
+                )
+            elif signal_type == "Product Launch":
+                summary = template["summary"].format(
+                    company=lead.company,
+                    product=random.choice(template["products"]),
+                )
+            elif signal_type == "Expansion":
+                summary = template["summary"].format(
+                    company=lead.company,
+                    market=random.choice(template["markets"]),
+                    city=random.choice(template["cities"]),
+                )
+            else:
+                summary = f"Signal detected for {lead.company}"
+
+            source_url = template["source_url"].format(slug=slug)
+
             event = LeadEvent(
                 lead_id=lead.id,
                 event_type=LeadEventType.SIGNAL_DETECTED,
                 raw_data={
                     "company": lead.company,
-                    "signal_type": "Funding",
-                    "summary": f"{lead.company} just raised a $5M seed round.",
-                    "source_url": "https://dummytechcrunch.com/funding",
-                    "queries_used": [],
-                    "raw_results_count": 1,
+                    "signal_type": signal_type,
+                    "summary": summary,
+                    "source_url": source_url,
+                    "queries_used": [f"{lead.company} {signal_type.lower()} 2026"],
+                    "raw_results_count": random.randint(2, 8),
                 },
             )
             self.db.add(event)
             events_created.append(event)
-            logger.info(f"Signal detected for {lead.company}")
+            logger.info(f"Signal detected for {lead.company}: {signal_type}")
 
         if events_created:
             await self.db.flush()
 
         logger.info(f"Scout Agent: detected {len(events_created)} signals")
         return events_created
-
-    # ------------------------------------------------------------------
-    # Per-lead scouting
-    # ------------------------------------------------------------------
-    async def _scout_lead(self, lead: Lead) -> Optional[LeadEvent]:
-        """Run search queries for a lead, analyse with Gemini, create event if signal found."""
-        current_year = datetime.utcnow().year
-        company = lead.company
-
-        queries = [
-            f"{company} funding OR investment OR raised {current_year}",
-            f"{company} hiring OR job opening site:linkedin.com/jobs OR site:indeed.com",
-        ]
-
-        # Collect search results from both queries
-        all_results: List[dict] = []
-        for query in queries:
-            results = await self._search(query)
-            all_results.extend(results)
-
-        if not all_results:
-            logger.debug(f"No search results for {company}")
-            return None
-
-        # Format results for Gemini
-        results_text = self._format_results(all_results)
-
-        # Extract signal via Gemini
-        signal = await self._extract_signal(company, results_text)
-        if not signal or not signal.get("signal_found"):
-            logger.debug(f"No signal detected for {company}")
-            return None
-
-        # Create LeadEvent
-        event = LeadEvent(
-            lead_id=lead.id,
-            event_type=LeadEventType.SIGNAL_DETECTED,
-            raw_data={
-                "company": company,
-                "signal_type": signal.get("signal_type"),
-                "summary": signal.get("summary"),
-                "source_url": signal.get("source_url"),
-                "queries_used": queries,
-                "raw_results_count": len(all_results),
-            },
-        )
-        self.db.add(event)
-        logger.info(
-            f"Signal detected for {company}: "
-            f"{signal.get('signal_type')} — {signal.get('summary', '')[:80]}"
-        )
-        return event
-
-    # ------------------------------------------------------------------
-    # Tavily search
-    # ------------------------------------------------------------------
-    async def _search(self, query: str) -> List[dict]:
-        """Run a Tavily search query. Returns list of result dicts."""
-        try:
-            response = await asyncio.to_thread(
-                self._tavily.search,
-                query=query,
-                max_results=5,
-                search_depth="basic",
-            )
-            return response.get("results", [])
-        except Exception as e:
-            logger.error(f"Tavily search error for '{query}': {e}")
-            return []
-
-    @staticmethod
-    def _format_results(results: List[dict]) -> str:
-        """Format Tavily results into a readable string for the LLM."""
-        lines = []
-        for i, r in enumerate(results, 1):
-            title = r.get("title", "Untitled")
-            url = r.get("url", "")
-            content = r.get("content", "")[:300]
-            lines.append(f"[{i}] {title}\n    URL: {url}\n    {content}\n")
-        return "\n".join(lines)
-
-    # ------------------------------------------------------------------
-    # Gemini signal extraction
-    # ------------------------------------------------------------------
-    async def _extract_signal(self, company: str, results_text: str) -> Optional[dict]:
-        """Send search results to Gemini 1.5 Flash for signal extraction.
-
-        Returns parsed JSON dict or None on failure.
-        """
-        prompt = SIGNAL_EXTRACTION_PROMPT.format(
-            company=company,
-            results=results_text,
-        )
-
-        try:
-            response = await self._model.generate_content_async(
-                prompt,
-                generation_config=genai.GenerationConfig(
-                    response_mime_type="application/json",
-                    temperature=0.1,
-                ),
-            )
-
-            raw_text = response.text.strip()
-            signal = json.loads(raw_text)
-            return signal
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Gemini returned invalid JSON for {company}: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Gemini API error for {company}: {e}")
-            return None

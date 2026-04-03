@@ -124,7 +124,7 @@ export default function Queue() {
           animate={{ opacity: 1 }}
           style={{
             textAlign: 'center', padding: '64px 20px',
-            borderRadius: 'var(--radius-lg)', border: '1px dashed var(--border)',
+            borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)',
             background: 'var(--bg-card)',
           }}
         >
@@ -156,14 +156,15 @@ export default function Queue() {
               return (
                 <motion.div
                   key={d.id}
-                  layout
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: 200, transition: { duration: 0.3 } }}
-                  transition={{ delay: idx * 0.05, type: 'spring', stiffness: 300, damping: 28 }}
+                  layout="position"
+                  initial={{ opacity: 0, y: 20, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+                  transition={{ delay: idx * 0.04, type: 'spring', stiffness: 400, damping: 30 }}
+                  whileHover={{ y: -2, boxShadow: 'var(--shadow-lg)' }}
                   style={{
-                    background: 'var(--bg-card)', border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-md)', padding: '20px 24px',
+                    background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)',
+                    borderRadius: 'var(--radius-md)', padding: '24px 28px',
                     position: 'relative', overflow: 'hidden',
                   }}
                 >
