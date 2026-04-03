@@ -1,43 +1,32 @@
-import uuid
-from datetime import datetime
-
 from fastapi import APIRouter
 
 from leadify.common.schemas import AgentCycleResult, AgentStatusRead
+from leadify.orchestrator.graph import run_cycle, agent_status_store
 
 router = APIRouter()
-
-# In-memory store for last cycle result (replaced by DB in Phase 3)
-_last_cycle: AgentCycleResult | None = None
 
 
 @router.post("/run", response_model=AgentCycleResult)
 async def run_agent_cycle():
-    """Manually trigger one full agent cycle (stub — returns mock data)."""
-    global _last_cycle
+    """Manually trigger one full agent cycle.
 
-    _last_cycle = AgentCycleResult(
-        cycle_id=uuid.uuid4(),
-        timestamp=datetime.utcnow(),
-        agents_involved=["watch", "scout", "reader", "scorer", "writer", "reviewer"],
-        leads_processed=0,
-        events_detected=0,
-        scores_updated=0,
-        drafts_created=0,
-        summary="Stub cycle — no agents implemented yet",
-        errors=[],
-    )
-    return _last_cycle
+    Runs the complete LangGraph orchestration pipeline
+    (watch → scout → reader → scorer → writer → reviewer)
+    and returns the cycle result summary.
+    """
+    result = await run_cycle()
+    return result
 
 
 @router.get("/status", response_model=AgentStatusRead)
 async def agent_status():
-    """Return last cycle timestamp, leads processed, drafts generated."""
-    if _last_cycle is None:
-        return AgentStatusRead()
+    """Return last cycle timestamp, leads processed, drafts generated.
 
+    Reads from the in-memory status store updated by the orchestrator's
+    finalize node at the end of every cycle.
+    """
     return AgentStatusRead(
-        last_cycle_at=_last_cycle.timestamp,
-        leads_processed=_last_cycle.leads_processed,
-        drafts_generated=_last_cycle.drafts_created,
+        last_cycle_at=agent_status_store.get("last_run_at"),
+        leads_processed=agent_status_store.get("leads_processed", 0),
+        drafts_generated=agent_status_store.get("drafts_created", 0),
     )

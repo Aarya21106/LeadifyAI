@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # Security
     ENCRYPTION_KEY: str = ""
 
+    # Agent Scheduler
+    AGENT_CYCLE_MINUTES: int = 60
+
     # Frontend
     FRONTEND_URL: str = "http://localhost:3000"
 

@@ -7,14 +7,17 @@ from leadify.common.settings import settings
 from leadify.db.session import engine
 from leadify.db.models import Base
 from leadify.api.routes import leads, queue, auth, agents
+from leadify.orchestrator.scheduler import start_scheduler, stop_scheduler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create DB tables on startup, dispose engine on shutdown."""
+    """Create DB tables on startup, start scheduler, dispose engine on shutdown."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    await start_scheduler()
     yield
+    await stop_scheduler()
     await engine.dispose()
 
 
