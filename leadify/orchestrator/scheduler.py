@@ -20,7 +20,7 @@ import os
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from leadify.orchestrator.graph import run_cycle, agent_status_store
+from leadify.orchestrator.graph import run_cycle
 
 logger = logging.getLogger(__name__)
 

@@ -1,8 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List
-from sqlalchemy import String, Text, Integer, ForeignKey, DateTime, JSON, Enum as SQLEnum, func
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import String, Text, Integer, ForeignKey, DateTime, JSON, Enum as SQLEnum, func, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from leadify.common.enums import LeadStatus, LeadEventType, FollowUpDraftStatus
@@ -17,7 +16,7 @@ class TimestampMixin:
 class Lead(Base, TimestampMixin):
     __tablename__ = "leads"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     name: Mapped[Optional[str]] = mapped_column(String)
     company: Mapped[Optional[str]] = mapped_column(String)
@@ -31,10 +30,10 @@ class Lead(Base, TimestampMixin):
 class LeadEvent(Base):
     __tablename__ = "lead_events"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     lead_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
     event_type: Mapped[LeadEventType] = mapped_column(SQLEnum(LeadEventType), index=True)
-    raw_data: Mapped[dict] = mapped_column(JSONB)
+    raw_data: Mapped[dict] = mapped_column(JSON)
     detected_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     lead: Mapped["Lead"] = relationship(back_populates="events")
@@ -42,7 +41,7 @@ class LeadEvent(Base):
 class LeadScore(Base):
     __tablename__ = "lead_scores"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     lead_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
     score: Mapped[int] = mapped_column(Integer)
     delta: Mapped[int] = mapped_column(Integer)
@@ -54,7 +53,7 @@ class LeadScore(Base):
 class FollowUpDraft(Base, TimestampMixin):
     __tablename__ = "follow_up_drafts"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     lead_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
     subject: Mapped[str] = mapped_column(String)
     body: Mapped[str] = mapped_column(Text)
@@ -69,7 +68,7 @@ class FollowUpDraft(Base, TimestampMixin):
 class GmailCredentials(Base):
     __tablename__ = "gmail_credentials"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     user_email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
     access_token: Mapped[str] = mapped_column(Text)  # Should be encrypted in practice
     refresh_token: Mapped[str] = mapped_column(Text) # Should be encrypted in practice

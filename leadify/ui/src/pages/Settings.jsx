@@ -1,153 +1,203 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { api } from '../api/client'
-import { Mail, Shield, Check, Settings as SettingsIcon } from 'lucide-react'
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
+import { CheckCircleIcon, XCircleIcon, EnvelopeIcon } from '@heroicons/react/24/solid';
+import { getGmailStatus, getGmailAuthUrl, disconnectGmail } from '../lib/api';
 
 export default function Settings() {
-  const [interval, setIntervalVal] = useState('60')
-  
-  const { data: gmailStatus } = useQuery({
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+
+  // Check for gmail=connected in query string (after OAuth redirect)
+  useEffect(() => {
+    if (searchParams.get('gmail') === 'connected') {
+      queryClient.invalidateQueries({ queryKey: ['gmail-status'] });
+    }
+  }, [searchParams, queryClient]);
+
+  const { data: gmail, isLoading: gmailLoading } = useQuery({
     queryKey: ['gmail-status'],
-    queryFn: async () => {
-      try {
-        const res = await api.get('/auth/gmail/status')
-        return res.data
-      } catch {
-        return { connected: false }
-      }
-    }
-  })
+    queryFn: getGmailStatus,
+    retry: false,
+    placeholderData: { connected: false },
+  });
 
-  // Simulated API settings check endpoints
-  const { data: envStatus } = useQuery({
-    queryKey: ['env-status'],
-    queryFn: async () => {
-      try {
-         const res = await api.get('/settings/status')
-         return res.data
-      } catch {
-         // Mock data if backend isn't ready
-         return {
-           gemini: true,
-           tavily: true,
-           database: true
-         }
-      }
-    }
-  })
+  const connectMutation = useMutation({
+    mutationFn: async () => {
+      const data = await getGmailAuthUrl();
+      window.location.href = data.auth_url;
+    },
+  });
 
-  const connectGmail = () => {
-    // Trigger OAuth flow directly via window location
-    window.location.href = 'http://localhost:8000/auth/gmail'
-  }
+  const disconnectMutation = useMutation({
+    mutationFn: disconnectGmail,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['gmail-status'] }),
+  });
 
-  const disconnectGmail = async () => {
-    // Simulated disconnect
-    alert("Disconnect flow would trigger here.")
-  }
+  const gmailConnected = gmail?.connected;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-100 mb-1 leading-tight">System Settings</h2>
-        <p className="text-slate-400 text-sm">Manage API connections and agent configuration.</p>
-      </div>
+    <div style={{ maxWidth: 640, margin: '0 auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Gmail Integration */}
-        <div className="terminal-panel p-6">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="p-2 bg-rose-500/10 rounded-md">
-              <Mail className="w-5 h-5 text-rose-500" />
-            </div>
-            <h3 className="text-lg font-medium text-slate-200">Gmail Connection</h3>
+        {/* ─── Card 1: Gmail Connection ─── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)', padding: 28,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <EnvelopeIcon style={{ width: 22, color: gmailConnected ? 'var(--emerald)' : 'var(--rose)' }} />
+            <h2 className="font-heading" style={{ fontSize: 18, fontWeight: 700 }}>Gmail Connection</h2>
           </div>
-          
-          {gmailStatus?.connected ? (
+
+          {gmailLoading ? (
+            <div className="skeleton" style={{ height: 60 }} />
+          ) : gmailConnected ? (
             <div>
-              <div className="flex items-center space-x-2 text-emerald-400 mb-4 bg-emerald-500/10 px-3 py-2 rounded-md border border-emerald-500/20">
-                <Check className="w-4 h-4" />
-                <span className="text-sm font-medium">Connected as {gmailStatus.email || 'authenticated user'}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+                >
+                  <CheckCircleIcon style={{ width: 28, color: 'var(--emerald)' }} />
+                </motion.div>
+                <div>
+                  <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--emerald)' }}>Connected</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    {gmail.email || 'Gmail account'}
+                  </p>
+                </div>
               </div>
-              <button 
-                onClick={disconnectGmail}
-                className="px-4 py-2 border border-slate-600 hover:bg-white/5 text-slate-300 transition-colors rounded text-sm w-full"
+
+              {gmail.last_sync && (
+                <p className="font-mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 16 }}>
+                  Last sync: {new Date(gmail.last_sync).toLocaleString()}
+                </p>
+              )}
+
+              <button
+                onClick={() => disconnectMutation.mutate()}
+                disabled={disconnectMutation.isPending}
+                style={{
+                  fontSize: 12, color: 'var(--rose)', background: 'none',
+                  textDecoration: 'underline', textUnderlineOffset: 3,
+                  opacity: disconnectMutation.isPending ? 0.5 : 0.7,
+                }}
               >
-                Disconnect Account
+                {disconnectMutation.isPending ? 'Disconnecting…' : 'Disconnect Gmail'}
               </button>
             </div>
           ) : (
             <div>
-              <p className="text-sm text-slate-400 mb-4">You need to connect an inbox for the Watch Agent to operate.</p>
-              <button 
-                onClick={connectGmail}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-sm font-medium w-full transition-colors"
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <XCircleIcon style={{ width: 28, color: 'var(--rose)' }} />
+                <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+                  Connect your Gmail to start monitoring leads
+                </p>
+              </div>
+
+              <motion.button
+                whileHover={{ scale: 1.03, boxShadow: '0 0 20px rgba(59,130,246,0.3)' }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => connectMutation.mutate()}
+                disabled={connectMutation.isPending}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '11px 24px', borderRadius: 'var(--radius-sm)',
+                  background: 'var(--blue)', color: 'white',
+                  fontSize: 14, fontWeight: 600,
+                  opacity: connectMutation.isPending ? 0.6 : 1,
+                }}
               >
-                Connect Gmail via OAuth
-              </button>
+                {connectMutation.isPending ? (
+                  <motion.span
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                    style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', display: 'inline-block' }}
+                  />
+                ) : (
+                  <EnvelopeIcon style={{ width: 16 }} />
+                )}
+                Connect Gmail
+              </motion.button>
             </div>
           )}
-        </div>
+        </motion.div>
 
-        {/* API Status */}
-        <div className="terminal-panel p-6">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="p-2 bg-indigo-500/10 rounded-md">
-              <Shield className="w-5 h-5 text-indigo-400" />
-            </div>
-            <h3 className="text-lg font-medium text-slate-200">System Checks</h3>
-          </div>
-          
-          <ul className="space-y-4">
-            <li className="flex items-center justify-between">
-              <span className="text-sm text-slate-300">Database Connection</span>
-              <div className="flex items-center text-xs space-x-1 text-emerald-400">
-                 <Check className="w-3 h-3" /> <span>OK</span>
-              </div>
-            </li>
-            <li className="flex items-center justify-between">
-              <span className="text-sm text-slate-300">Gemini LLM Key</span>
-              <div className="flex items-center text-xs space-x-1 text-emerald-400">
-                 <Check className="w-3 h-3" /> <span>Active</span>
-              </div>
-            </li>
-            <li className="flex items-center justify-between">
-              <span className="text-sm text-slate-300">Tavily Search Key</span>
-              <div className="flex items-center text-xs space-x-1 text-emerald-400">
-                 <Check className="w-3 h-3" /> <span>Active</span>
-              </div>
-            </li>
-          </ul>
-        </div>
+        {/* ─── Card 2: Cycle Settings ─── */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)', padding: 28,
+          }}
+        >
+          <h2 className="font-heading" style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
+            Cycle Settings
+          </h2>
 
-        {/* Agent Configuration */}
-        <div className="terminal-panel p-6 md:col-span-2">
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="p-2 bg-slate-700/50 rounded-md">
-              <SettingsIcon className="w-5 h-5 text-slate-300" />
-            </div>
-            <h3 className="text-lg font-medium text-slate-200">Agent Cycle Configuration</h3>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4">
-            <div className="flex-1 w-full relative">
-              <label className="text-xs text-slate-500 uppercase tracking-wider mb-2 block">Cycle Interval (Minutes)</label>
-              <input 
-                type="number" 
-                value={interval}
-                onChange={e => setIntervalVal(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-700 rounded px-4 py-2 font-mono text-slate-200 focus:outline-none focus:border-indigo-500" 
-              />
-            </div>
-            <div className="w-full sm:w-auto self-end">
-              <button className="w-full px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded font-medium transition-colors">
-                Save Parameter
-              </button>
-            </div>
-          </div>
-          <p className="text-xs text-slate-500 mt-3">This controls how often the LangGraph orchestrator launches a full sweep.</p>
-        </div>
+          <CycleIntervalSlider />
+        </motion.div>
       </div>
     </div>
-  )
+  );
+}
+
+/* ─── Cycle Interval Slider ─── */
+function CycleIntervalSlider() {
+  const options = [30, 60, 120, 240];
+  const [selected, setSelected] = useState(60);
+
+  return (
+    <div>
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+        Run agents every <span className="font-mono" style={{ color: 'var(--blue)', fontWeight: 700 }}>{selected}</span> minutes
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {options.map(opt => (
+          <motion.button
+            key={opt}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setSelected(opt)}
+            className="font-mono"
+            style={{
+              flex: 1, padding: '10px 0',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: 14, fontWeight: 600,
+              background: selected === opt ? 'var(--blue)' : 'var(--bg-elevated)',
+              color: selected === opt ? 'white' : 'var(--text-secondary)',
+              border: selected === opt ? 'none' : '1px solid var(--border)',
+              transition: 'all 0.2s',
+            }}
+          >
+            {opt}m
+          </motion.button>
+        ))}
+      </div>
+
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        style={{
+          width: '100%', padding: '11px 0',
+          borderRadius: 'var(--radius-sm)',
+          background: 'var(--blue-dim)', color: 'var(--blue)',
+          border: '1px solid rgba(59,130,246,0.2)',
+          fontSize: 13, fontWeight: 600,
+        }}
+      >
+        Save Settings
+      </motion.button>
+    </div>
+  );
 }

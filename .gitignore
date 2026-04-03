@@ -16,6 +16,16 @@ env/
 .vscode/
 .idea/
 
+# Node
+node_modules/
+package-lock.json
+
+# Database
+*.db
+
+# Test/temp files
+test_url.txt
+
 # OS
 .DS_Store
 Thumbs.db

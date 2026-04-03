@@ -40,11 +40,11 @@ class ScorerAgent:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self._model = genai.GenerativeModel(
-            "gemini-1.5-flash",
-            system_instruction=SCORING_SYSTEM_PROMPT,
-        )
+        # genai.configure(api_key=settings.GEMINI_API_KEY)
+        # self._model = genai.GenerativeModel(
+        #     "gemini-1.5-flash",
+        #     system_instruction=SCORING_SYSTEM_PROMPT,
+        # )
 
     # ------------------------------------------------------------------
     # Main entry point
@@ -290,39 +290,14 @@ class ScorerAgent:
     # Gemini call
     # ------------------------------------------------------------------
     async def _call_gemini(self, context: str, lead: Lead) -> Optional[dict]:
-        """Send scoring context to Gemini and return parsed JSON result."""
-        try:
-            response = await self._model.generate_content_async(
-                context,
-                generation_config=genai.GenerationConfig(
-                    response_mime_type="application/json",
-                    temperature=0.1,
-                ),
-            )
-
-            raw_text = response.text.strip()
-            result = json.loads(raw_text)
-
-            # Validate required fields
-            if "score" not in result:
-                logger.error(
-                    f"Gemini response missing 'score' for {lead.email}"
-                )
-                return None
-
-            # Coerce score to int within bounds
-            result["score"] = max(0, min(100, int(result["score"])))
-
-            return result
-
-        except json.JSONDecodeError as e:
-            logger.error(
-                f"Gemini returned invalid JSON for {lead.email}: {e}"
-            )
-            return None
-        except Exception as e:
-            logger.error(f"Gemini API error for {lead.email}: {e}")
-            return None
+        """Mock Gemini scoring."""
+        # Simple dummy logic
+        mock_score = 65
+        return {
+            "score": mock_score,
+            "delta": 25,
+            "reasoning": "Mocked score reasoning."
+        }
 
     # ------------------------------------------------------------------
     # Helpers

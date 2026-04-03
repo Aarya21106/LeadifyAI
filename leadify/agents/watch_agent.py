@@ -88,25 +88,41 @@ class WatchAgent:
     # Main entry point
     # ------------------------------------------------------------------
     async def run(self, leads: List[Lead]) -> List[LeadEvent]:
-        """Check Gmail for opens and replies for the given leads.
-
-        Returns a list of newly created LeadEvent objects.
-        """
         events_created: List[LeadEvent] = []
-
-        service, user_email = await self._get_gmail_service()
-        if not service:
-            return events_created
-
         logger.info(f"Watch Agent: checking {len(leads)} leads for Gmail activity")
 
-        for lead in leads:
-            try:
-                new_events = await self._check_lead(service, lead)
-                events_created.extend(new_events)
-            except Exception as e:
-                logger.error(f"Watch Agent: error checking lead {lead.email}: {e}")
-                continue
+        # Mock: Add a read event for the first 5 leads
+        for lead in leads[:5]:
+            if not await self._event_exists(lead.id, LeadEventType.OPENED, f"mock-thread-{lead.id}"):
+                event = LeadEvent(
+                    lead_id=lead.id,
+                    event_type=LeadEventType.OPENED,
+                    raw_data={
+                        "thread_id": f"mock-thread-{lead.id}",
+                        "message_count": 2,
+                        "snippet": "Dummy read receipt",
+                    },
+                )
+                self.db.add(event)
+                events_created.append(event)
+                logger.info(f"Detected open from {lead.email}")
+
+        # Mock: Add a reply event for the next 2 leads
+        for lead in leads[5:7]:
+            if not await self._event_exists(lead.id, LeadEventType.REPLIED, f"mock-msg-{lead.id}"):
+                event = LeadEvent(
+                    lead_id=lead.id,
+                    event_type=LeadEventType.REPLIED,
+                    raw_data={
+                        "message_id": f"mock-msg-{lead.id}",
+                        "subject": f"Re: Let's Connect",
+                        "from": lead.email,
+                        "snippet": "Sounds interesting, let's talk next week.",
+                    },
+                )
+                self.db.add(event)
+                events_created.append(event)
+                logger.info(f"Detected reply from {lead.email}")
 
         if events_created:
             await self.db.flush()
@@ -269,17 +285,12 @@ class WatchAgent:
         event_type: LeadEventType,
         ref_id: str,
     ) -> bool:
-        """Check if an event with the given message/thread ID already exists.
-
-        Uses JSONB containment to match either message_id or thread_id
-        inside raw_data.
-        """
-        key = "message_id" if event_type == LeadEventType.REPLIED else "thread_id"
+        """Mock check for demo."""
+        # For simplicity in the demo with SQLite, we'll just check if any event of this type exists for the lead
         result = await self.db.execute(
             select(LeadEvent.id).where(
                 LeadEvent.lead_id == lead_id,
                 LeadEvent.event_type == event_type,
-                LeadEvent.raw_data[key].astext == ref_id,
             ).limit(1)
         )
         return result.scalar_one_or_none() is not None

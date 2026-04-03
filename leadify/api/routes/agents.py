@@ -1,32 +1,38 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, BackgroundTasks
 
-from leadify.common.schemas import AgentCycleResult, AgentStatusRead
-from leadify.orchestrator.graph import run_cycle, agent_status_store
+from leadify.api.ws_manager import agent_status_manager
+from leadify.common.schemas import AgentCycleResult
+from leadify.orchestrator.graph import run_cycle
 
 router = APIRouter()
 
 
-@router.post("/run", response_model=AgentCycleResult)
-async def run_agent_cycle():
-    """Manually trigger one full agent cycle.
+@router.post("/run")
+async def run_agent_cycle(background_tasks: BackgroundTasks):
+    """Manually trigger one full agent cycle in the background.
 
     Runs the complete LangGraph orchestration pipeline
     (watch → scout → reader → scorer → writer → reviewer)
-    and returns the cycle result summary.
+    and broadcasts the progress over WebSocket.
     """
-    result = await run_cycle()
-    return result
+    background_tasks.add_task(run_cycle)
+    return {"status": "started", "message": "Agent cycle initiated. Connect via WebSocket for real-time status."}
 
-
-@router.get("/status", response_model=AgentStatusRead)
+@router.get("/status")
 async def agent_status():
-    """Return last cycle timestamp, leads processed, drafts generated.
+    """Return fallback HTTP status tracking active cycles.
 
-    Reads from the in-memory status store updated by the orchestrator's
-    finalize node at the end of every cycle.
+    Reads from the ws_manager's last_cycle_status.
     """
-    return AgentStatusRead(
-        last_cycle_at=agent_status_store.get("last_run_at"),
-        leads_processed=agent_status_store.get("leads_processed", 0),
-        drafts_generated=agent_status_store.get("drafts_created", 0),
-    )
+    return agent_status_manager.last_cycle_status
+
+@router.websocket("/ws")
+async def agent_websocket(websocket: WebSocket):
+    await agent_status_manager.connect(websocket)
+    try:
+        while True:
+            # We don't expect messages from the client in this one-way broadcast,
+            # but we need to receive to handle disconnects cleanly.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        agent_status_manager.disconnect(websocket)

@@ -38,34 +38,36 @@ class ScoutAgent:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        self._tavily = TavilyClient(api_key=settings.TAVILY_API_KEY)
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self._model = genai.GenerativeModel("gemini-1.5-flash")
+        # self._tavily = TavilyClient(api_key=settings.TAVILY_API_KEY)
+        # genai.configure(api_key=settings.GEMINI_API_KEY)
+        # self._model = genai.GenerativeModel("gemini-1.5-flash")
 
     # ------------------------------------------------------------------
     # Main entry point
     # ------------------------------------------------------------------
     async def run(self, leads: List[Lead]) -> List[LeadEvent]:
-        """Search for signals for each lead's company.
-
-        Returns a list of newly created LeadEvent objects.
-        """
         events_created: List[LeadEvent] = []
-
         logger.info(f"Scout Agent: scanning {len(leads)} leads for signals")
 
-        for lead in leads:
+        # Mock: 5 dummy signals
+        for lead in leads[10:15]:
             if not lead.company:
-                logger.debug(f"Skipping {lead.email} — no company set")
                 continue
-
-            try:
-                event = await self._scout_lead(lead)
-                if event:
-                    events_created.append(event)
-            except Exception as e:
-                logger.error(f"Scout Agent: error scouting {lead.email}: {e}")
-                continue
+            event = LeadEvent(
+                lead_id=lead.id,
+                event_type=LeadEventType.SIGNAL_DETECTED,
+                raw_data={
+                    "company": lead.company,
+                    "signal_type": "Funding",
+                    "summary": f"{lead.company} just raised a $5M seed round.",
+                    "source_url": "https://dummytechcrunch.com/funding",
+                    "queries_used": [],
+                    "raw_results_count": 1,
+                },
+            )
+            self.db.add(event)
+            events_created.append(event)
+            logger.info(f"Signal detected for {lead.company}")
 
         if events_created:
             await self.db.flush()

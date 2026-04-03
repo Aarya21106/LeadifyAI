@@ -21,7 +21,7 @@ from leadify.db.models import Lead, LeadScore, LeadEvent
 router = APIRouter()
 
 
-@router.post("/", response_model=LeadRead, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=LeadRead, status_code=status.HTTP_201_CREATED)
 async def create_lead(lead_in: LeadCreate, db: AsyncSession = Depends(get_db)):
     """Create a new lead."""
     # Check for duplicate email
@@ -45,7 +45,7 @@ async def create_lead(lead_in: LeadCreate, db: AsyncSession = Depends(get_db)):
     return lead
 
 
-@router.get("/", response_model=List[LeadRead])
+@router.get("", response_model=List[LeadRead])
 async def list_leads(
     lead_status: Optional[LeadStatus] = Query(None, alias="status"),
     db: AsyncSession = Depends(get_db),

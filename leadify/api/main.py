@@ -1,7 +1,10 @@
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from leadify.common.settings import settings
 from leadify.db.session import engine
@@ -38,12 +41,28 @@ app.add_middleware(
 )
 
 # Mount routers
-app.include_router(leads.router, prefix="/leads", tags=["Leads"])
-app.include_router(queue.router, prefix="/queue", tags=["Queue"])
-app.include_router(auth.router, prefix="/auth", tags=["Auth"])
-app.include_router(agents.router, prefix="/agents", tags=["Agents"])
-
+app.include_router(leads.router, prefix="/api/leads", tags=["Leads"])
+app.include_router(queue.router, prefix="/api/queue", tags=["Queue"])
+app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
+app.include_router(agents.router, prefix="/api/agents", tags=["Agents"])
 
 @app.get("/health", tags=["Health"])
 async def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "1.0.0"}
+
+# Serve built React App
+ui_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ui", "dist")
+
+if os.path.isdir(os.path.join(ui_path, "assets")):
+    app.mount("/assets", StaticFiles(directory=os.path.join(ui_path, "assets")), name="assets")
+
+@app.get("/{catchall:path}", tags=["Frontend"])
+async def serve_react_app(catchall: str):
+    file_path = os.path.join(ui_path, catchall)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
+    
+    index_path = os.path.join(ui_path, "index.html")
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+    return {"error": "Frontend UI not built yet. Run npm run build in leadify/ui."}

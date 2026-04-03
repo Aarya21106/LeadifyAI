@@ -1,161 +1,282 @@
-import { useState, useEffect } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../api/client'
-import { Inbox, Users, Settings, Play, Mail, Activity, Loader2 } from 'lucide-react'
-import { cn } from '../utils'
+import { useState, useEffect } from 'react';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  InboxIcon, UsersIcon, Cog6ToothIcon,
+  BoltIcon, PlayIcon,
+} from '@heroicons/react/24/outline';
+import { SignalIcon } from '@heroicons/react/24/solid';
+import { runAgents, getGmailStatus, getAgentStatus } from '../lib/api';
+import AgentPipeline from './AgentPipeline';
 
-function Countdown({ lastCycleAt, isRunning }) {
-  const [timeLeft, setTimeLeft] = useState('--:--');
+const NAV = [
+  { name: 'Queue',    path: '/queue',    icon: InboxIcon },
+  { name: 'Leads',    path: '/leads',    icon: UsersIcon },
+  { name: 'Live',     path: '/live',     icon: BoltIcon },
+  { name: 'Settings', path: '/settings', icon: Cog6ToothIcon },
+];
 
-  useEffect(() => {
-    if (!lastCycleAt) return;
-    // Assuming a 60 min cycle for display. If Settings interval is fetched, use it.
-    const intervalMs = 60 * 60 * 1000;
-    
-    const updateCountdown = () => {
-      const lastRun = new Date(lastCycleAt).getTime();
-      const nextRun = lastRun + intervalMs;
-      const now = new Date().getTime();
-      
-      const diff = nextRun - now;
-      if (diff <= 0) {
-        setTimeLeft('00:00');
-        return;
-      }
-      
-      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-      setTimeLeft(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
-    };
-
-    updateCountdown();
-    const timer = setInterval(updateCountdown, 1000);
-    return () => clearInterval(timer);
-  }, [lastCycleAt]);
-
-  if (isRunning) {
-    return <span className="text-indigo-400 animate-pulse font-mono flex items-center">Cycle running <Loader2 className="w-3 h-3 ml-2 animate-spin" /></span>;
-  }
-
-  return <span className="font-mono text-slate-400">Next cycle in: {timeLeft}</span>;
-}
-
+const pageTitles = {
+  '/queue': 'Draft Queue',
+  '/leads': 'Lead Pipeline',
+  '/live': 'Live Agent Monitor',
+  '/settings': 'Settings',
+};
 
 export default function Layout() {
-  const queryClient = useQueryClient()
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const location = useLocation();
+  const queryClient = useQueryClient();
+  const title = pageTitles[location.pathname] || 'Leadify';
 
-  // Poll agent status every 10 seconds
-  const { data: statusData, isFetching: statusFetching } = useQuery({
-    queryKey: ['agent-status'],
-    queryFn: async () => {
-      const res = await api.get('/agents/status')
-      return res.data
-    },
-    refetchInterval: 10000,
-  })
-
-  // Basic gmail status check
-  const { data: gmailStatus } = useQuery({
+  // Gmail status
+  const { data: gmail } = useQuery({
     queryKey: ['gmail-status'],
-    queryFn: async () => {
-      try {
-        const res = await api.get('/auth/gmail/status')
-        return res.data
-      } catch {
-        return { connected: false }
-      }
-    },
-    retry: false
-  })
+    queryFn: getGmailStatus,
+    retry: false,
+    placeholderData: { connected: false },
+  });
 
-  // Run cycle mutation
+  // Agent status (for cycle countdown)
+  const { data: agentData } = useQuery({
+    queryKey: ['agent-status'],
+    queryFn: getAgentStatus,
+    refetchInterval: 10000,
+    placeholderData: {},
+  });
+
+  // Run agents mutation
   const runMutation = useMutation({
-    mutationFn: async () => {
-      const res = await api.post('/agents/run')
-      return res.data
-    },
+    mutationFn: runAgents,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['agent-status'] })
-      queryClient.invalidateQueries({ queryKey: ['queue'] })
-      queryClient.invalidateQueries({ queryKey: ['leads'] })
-    }
-  })
+      queryClient.invalidateQueries({ queryKey: ['agent-status'] });
+      queryClient.invalidateQueries({ queryKey: ['queue'] });
+    },
+  });
 
-  const isGmailConnected = gmailStatus?.connected;
-  const navItems = [
-    { name: 'Queue', path: '/queue', icon: Inbox },
-    { name: 'Leads', path: '/leads', icon: Users },
-    { name: 'Settings', path: '/settings', icon: Settings },
-  ]
+  const isRunning = agentData?.cycle_complete === false && agentData?.agents;
+  const gmailConnected = gmail?.connected;
 
   return (
-    <div className="flex h-screen bg-bgMain overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 border-r border-borderSubtle bg-bgPanel flex flex-col">
-        <div className="h-16 flex items-center px-6 border-b border-borderSubtle">
-          <Activity className="w-6 h-6 text-indigo-500 mr-2" />
-          <h1 className="text-xl font-bold tracking-tight text-slate-100">Leadify AI</h1>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-void)' }}>
+
+      {/* ─── Sidebar ─── */}
+      <motion.aside
+        className="sidebar-desktop"
+        onMouseEnter={() => setSidebarOpen(true)}
+        onMouseLeave={() => setSidebarOpen(false)}
+        animate={{ width: sidebarOpen ? 200 : 64 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+        style={{
+          height: '100vh', display: 'flex', flexDirection: 'column',
+          background: 'var(--bg-surface)', borderRight: '1px solid var(--border)',
+          overflow: 'hidden', flexShrink: 0, zIndex: 50,
+        }}
+      >
+        {/* Logo */}
+        <div style={{
+          height: 64, display: 'flex', alignItems: 'center', gap: 10,
+          padding: '0 18px', borderBottom: '1px solid var(--border)',
+          overflow: 'hidden', flexShrink: 0,
+        }}>
+          <motion.div
+            animate={{ scale: [1, 1.15, 1], opacity: [0.7, 1, 0.7] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+            style={{
+              width: 10, height: 10, borderRadius: '50%',
+              background: 'var(--blue)', flexShrink: 0,
+              boxShadow: '0 0 10px var(--blue)',
+            }}
+          />
+          <AnimatePresence>
+            {sidebarOpen && (
+              <motion.span
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -8 }}
+                className="font-heading"
+                style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}
+              >
+                Leadify
+              </motion.span>
+            )}
+          </AnimatePresence>
         </div>
-        
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.path}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center px-3 py-2.5 rounded-md text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-accentSubtle text-indigo-400"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-                )
-              }
-            >
-              <item.icon className="w-5 h-5 mr-3" />
-              {item.name}
-            </NavLink>
-          ))}
+
+        {/* Nav Items */}
+        <nav style={{ flex: 1, padding: '16px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {NAV.map((item) => {
+            const active = location.pathname === item.path;
+            return (
+              <NavLink key={item.path} to={item.path} style={{ textDecoration: 'none' }}>
+                <motion.div
+                  whileHover={{ background: 'var(--bg-hover)' }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '10px 14px', borderRadius: 'var(--radius-sm)',
+                    position: 'relative', overflow: 'hidden',
+                    color: active ? 'var(--blue)' : 'var(--text-secondary)',
+                    background: active ? 'var(--blue-dim)' : 'transparent',
+                    transition: 'color 0.2s',
+                  }}
+                >
+                  {active && (
+                    <motion.div
+                      layoutId="nav-indicator"
+                      style={{
+                        position: 'absolute', left: 0, top: '15%', bottom: '15%', width: 3,
+                        background: 'var(--blue)', borderRadius: 4,
+                      }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                    />
+                  )}
+                  <item.icon style={{ width: 20, height: 20, flexShrink: 0 }} />
+                  <AnimatePresence>
+                    {sidebarOpen && (
+                      <motion.span
+                        initial={{ opacity: 0, x: -6 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -6 }}
+                        style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}
+                      >
+                        {item.name}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </NavLink>
+            );
+          })}
         </nav>
 
-        {/* Status Indicator */}
-        <div className="p-4 border-t border-borderSubtle">
-          <div className="flex items-center text-xs font-medium text-slate-400">
-            <div className={cn(
-              "w-2 h-2 rounded-full mr-2",
-              isGmailConnected ? "bg-emerald-500" : "bg-red-500"
-            )} />
-            Gmail {isGmailConnected ? 'Connected' : 'Disconnected'}
+        {/* Bottom: Gmail + Countdown */}
+        <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+              background: gmailConnected ? 'var(--emerald)' : 'var(--rose)',
+              boxShadow: gmailConnected ? '0 0 8px var(--emerald)' : '0 0 8px var(--rose)',
+            }} />
+            <AnimatePresence>
+              {sidebarOpen && (
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}
+                >
+                  Gmail {gmailConnected ? 'connected' : 'disconnected'}
+                </motion.span>
+              )}
+            </AnimatePresence>
           </div>
-        </div>
-      </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Top bar */}
-        <header className="h-16 border-b border-borderSubtle bg-bgMain/80 backdrop-blur-md flex items-center justify-between px-8 z-10">
-          <div className="flex items-center text-sm">
-            <Countdown 
-              lastCycleAt={statusData?.last_cycle_at} 
-              isRunning={runMutation.isPending} 
-            />
+          {sidebarOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="font-mono"
+              style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}
+            >
+              <CycleCountdown lastCycleAt={agentData?.cycle_start} />
+            </motion.div>
+          )}
+        </div>
+      </motion.aside>
+
+      {/* ─── Main ─── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+
+        {/* Top Bar */}
+        <header style={{
+          height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 28px', borderBottom: '1px solid var(--border)',
+          background: 'rgba(10,10,15,0.8)', backdropFilter: 'blur(16px)',
+          flexShrink: 0, zIndex: 40,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <h1 className="font-heading" style={{ fontSize: 16, fontWeight: 700 }}>{title}</h1>
+            {isRunning && <AgentPipeline mini />}
           </div>
-          
-          <button 
-            onClick={() => runMutation.mutate()}
-            disabled={runMutation.isPending}
-            className="flex items-center px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded text-sm font-medium transition-colors"
-          >
-            <Play className="w-4 h-4 mr-2" />
-            Run Now
-          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {isRunning && (
+              <motion.span
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="font-mono"
+                style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: 1.5,
+                  color: 'var(--blue)', padding: '3px 10px',
+                  borderRadius: 20, background: 'var(--blue-dim)',
+                  border: '1px solid rgba(59,130,246,0.2)',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <motion.span
+                  animate={{ opacity: [1, 0.3, 1] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                  style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--blue)' }}
+                />
+                CYCLE RUNNING
+              </motion.span>
+            )}
+
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => runMutation.mutate()}
+              disabled={runMutation.isPending}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 16px', borderRadius: 'var(--radius-sm)',
+                background: 'var(--blue)', color: 'white',
+                fontSize: 13, fontWeight: 600,
+                opacity: runMutation.isPending ? 0.6 : 1,
+              }}
+            >
+              {runMutation.isPending ? (
+                <motion.span
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                  style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', display: 'inline-block' }}
+                />
+              ) : (
+                <PlayIcon style={{ width: 14 }} />
+              )}
+              Run Agents Now
+            </motion.button>
+          </div>
         </header>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto bg-bgMain p-8">
+        {/* Page Content */}
+        <main style={{ flex: 1, overflowY: 'auto', padding: 28, background: 'var(--bg-void)' }}>
           <Outlet />
         </main>
       </div>
     </div>
-  )
+  );
+}
+
+/* ─── Cycle Countdown ─── */
+function CycleCountdown({ lastCycleAt }) {
+  const [display, setDisplay] = useState('--:--');
+
+  useEffect(() => {
+    if (!lastCycleAt) return;
+    const interval = 60 * 60 * 1000;
+    const update = () => {
+      const next = new Date(lastCycleAt).getTime() + interval;
+      const diff = Math.max(0, next - Date.now());
+      const m = Math.floor(diff / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setDisplay(`${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
+    };
+    update();
+    const t = setInterval(update, 1000);
+    return () => clearInterval(t);
+  }, [lastCycleAt]);
+
+  return <span>Next run {display}</span>;
 }

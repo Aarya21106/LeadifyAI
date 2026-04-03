@@ -20,7 +20,7 @@ from leadify.db.models import FollowUpDraft, Lead
 router = APIRouter()
 
 
-@router.get("/", response_model=List[QueueDraftRead])
+@router.get("", response_model=List[QueueDraftRead])
 async def list_queue(db: AsyncSession = Depends(get_db)):
     """Return all pending_review drafts joined with lead data, sorted by score descending."""
     result = await db.execute(

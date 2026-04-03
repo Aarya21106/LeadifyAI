@@ -38,11 +38,11 @@ class ReaderAgent:
 
     def __init__(self, db: AsyncSession):
         self.db = db
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        self._model = genai.GenerativeModel(
-            "gemini-1.5-flash",
-            system_instruction=CLASSIFICATION_SYSTEM_PROMPT,
-        )
+        # genai.configure(api_key=settings.GEMINI_API_KEY)
+        # self._model = genai.GenerativeModel(
+        #     "gemini-1.5-flash",
+        #     system_instruction=CLASSIFICATION_SYSTEM_PROMPT,
+        # )
 
     # ------------------------------------------------------------------
     # Main entry point
@@ -140,39 +140,13 @@ class ReaderAgent:
     # Gemini call
     # ------------------------------------------------------------------
     async def _call_gemini(self, user_prompt: str, lead_id) -> dict | None:
-        """Send the reply text to Gemini and return parsed classification JSON."""
-        try:
-            response = await self._model.generate_content_async(
-                user_prompt,
-                generation_config=genai.GenerationConfig(
-                    response_mime_type="application/json",
-                    temperature=0.1,
-                ),
-            )
-
-            raw_text = response.text.strip()
-            result = json.loads(raw_text)
-
-            # Basic validation
-            valid_classes = {
-                "interested", "warm", "cold", "out_of_office", "unsubscribe",
-            }
-            if result.get("classification") not in valid_classes:
-                logger.warning(
-                    f"Gemini returned unknown classification "
-                    f"'{result.get('classification')}' for lead {lead_id}; "
-                    f"defaulting to 'cold'"
-                )
-                result["classification"] = "cold"
-
-            return result
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Gemini returned invalid JSON for lead {lead_id}: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Gemini API error for lead {lead_id}: {e}")
-            return None
+        """Mock Gemini."""
+        return {
+            "classification": "warm",
+            "objections": [],
+            "key_quote": "Sounds interesting, let's talk next week.",
+            "suggested_angle": "Suggest times for next week."
+        }
 
     # ------------------------------------------------------------------
     # Helpers

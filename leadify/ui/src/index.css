@@ -1,31 +1,182 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap');
 
-@layer base {
-  body {
-    @apply bg-bgMain text-slate-300;
-  }
+:root {
+  /* Background */
+  --bg-void: #0a0a0f;
+  --bg-surface: #0f0f18;
+  --bg-card: #13131f;
+  --bg-elevated: #1a1a2e;
+  --bg-hover: #1e1e35;
+
+  /* Accent */
+  --blue: #3b82f6;
+  --blue-glow: rgba(59, 130, 246, 0.15);
+  --blue-dim: rgba(59, 130, 246, 0.08);
+  --emerald: #10b981;
+  --emerald-glow: rgba(16, 185, 129, 0.15);
+  --rose: #f43f5e;
+  --rose-glow: rgba(244, 63, 94, 0.15);
+  --amber: #f59e0b;
+  --amber-glow: rgba(245, 158, 11, 0.15);
+
+  /* Text */
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-muted: #475569;
+  --text-ghost: #334155;
+
+  /* Border */
+  --border: rgba(148, 163, 184, 0.08);
+  --border-active: rgba(59, 130, 246, 0.3);
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* Fonts */
+  --font-heading: 'Syne', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-body: 'Inter', sans-serif;
 }
 
-@layer utilities {
-  .terminal-panel {
-    @apply bg-bgPanel border border-borderSubtle shadow-xl shadow-black/40 rounded-md;
-  }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-/* Custom Scrollbar for the terminal feel */
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  background: var(--bg-void);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0e1117; 
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #30363d; 
-  border-radius: 4px;
+  background: var(--text-ghost);
+  border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4b5563; 
+  background: var(--text-muted);
+}
+
+/* Selection */
+::selection {
+  background: var(--blue);
+  color: white;
+}
+
+/* ─── Utility Classes ─── */
+.font-heading { font-family: var(--font-heading); }
+.font-mono { font-family: var(--font-mono); }
+.font-body { font-family: var(--font-body); }
+
+/* ─── Animations ─── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes flow-dots {
+  0% { stroke-dashoffset: 20; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes glow-breathe {
+  0%, 100% { box-shadow: 0 0 8px var(--blue-glow), 0 0 20px var(--blue-glow); }
+  50% { box-shadow: 0 0 16px var(--blue-glow), 0 0 40px var(--blue-glow); }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-card) 25%, var(--bg-elevated) 50%, var(--bg-card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* ─── Toast ─── */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(20px);
+  max-width: 360px;
+}
+
+.toast--success {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+.toast--error {
+  background: rgba(244, 63, 94, 0.12);
+  border-color: rgba(244, 63, 94, 0.25);
+}
+.toast--info {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+/* ─── Button Reset ─── */
+button {
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  outline: none;
+  background: none;
+  color: inherit;
+}
+
+input, textarea, select {
+  font-family: inherit;
+  outline: none;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--blue);
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .sidebar-desktop { display: none !important; }
 }

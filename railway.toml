@@ -1,10 +1,7 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "uvicorn leadify.api.main:app --host 0.0.0.0 --port $PORT"
+startCommand = "alembic upgrade head && uvicorn leadify.api.main:app --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/health"
-healthcheckTimeout = 100
-restartPolicyType = "on-failure"
-maxRestartRetries = 10
+restartPolicyType = "on_failure"
