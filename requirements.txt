@@ -1,0 +1,17 @@
+fastapi
+sqlalchemy[asyncio]
+alembic
+pydantic[email]
+pydantic-settings
+asyncpg
+python-dotenv
+uvicorn
+cryptography
+langgraph
+tavily-python
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
+anthropic
+mistralai
+openai
